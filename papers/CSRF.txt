@@ -1,0 +1,284 @@
+Cross-Site Request Forgeries
+		(CSRF, pronounced "sea surf")
+
+I hope you don't mind if I expand on this a bit. You've come across the
+tip, in my opinion, of a rather large iceberg. It's another
+Web/trust-relationship problem. Many Web applications are fairly good at
+identifying users and understanding requests, but terrible at verifying
+origins and intent.
+
+The problem isn't the IMG tag on the message board, it's the backend app
+you seek to attack via the IMG tag. And I suspect lots of Web apps are
+vulnerable. Lots. I've been to training on highly-regarded, widely-used,
+expensive Web app development frameworks, and none of the classes taught
+how to avoid the problems I will attempt to describe. In fact, they all
+seem to teach the "easy way" of handling what look like user requests,
+which is, of course, the vulnerable way.
+
+Anyway, let's look at how your post relates to what I call CSRF.
+
+On Wed, Jun 13, 2001 at 07:33:04PM +0100, John Percival wrote:
+
+> This exploit shows how almost any script that uses cookie session/login data
+> to validate CGI forms can be exploited if the users can post images.
+
+> What is the problem? Well, by using an [img] (or HTML <img> or <iframe> or
+> <script src="">) tag, the user is having anyone who views the thread access
+> that image - that is perform an HTTP GET on the URL specified for the image.
+> Even if its not an image, it still can be accessed, but will display a
+> broken image. 
+
+Depending on what's allowed, height/width and CSS/visibility tags can be 
+used to hide the broken image icon.
+
+> This means that the user can put a CGI script inside [img]
+> tags.
+
+** Learning from Randal's purple dinosaur?
+
+The problem you describe is not uploading images, it's allowing users to
+post code that's inserted in an appropriate HTML tag attribute. This is
+something of a variation on Randal Schwartz's purple dinosaur hack,[2] but
+much more interesting and dangerous than even what you describe.
+
+> This script will be called by whoever views that thread. When used
+> maliciously, it could force the user to: unknowingly update their profile,
+> respond to polls in a certain way, post new messages or threads, email a
+> user with whatever text they want, the list goes on. This would be
+> particularly worrying for a 'worm' to spread through a forum, filling it
+> with rubbish posts.
+
+** The difference between XSS and CSRF
+
+Right. There's something much larger going on here. Darnit, I wanted to
+make a nice formal paper out of this, but you're forcing my hand. :-) The
+problem is what I call CSRF (Cross-Site Request Forgeries, pronounced "sea
+surf"). Any time you can get a user to open an HTML document, you can use
+things like IMG tags to forge requests, with that user's credentials, to
+any Web site you want -- the one the HTML document is on, or any other.
+
+This looks somewhat similar to Cross-Site Scripting (XSS), but is not the
+same. XSS aimed at inserting active code in an HTML document to either abuse
+client-side active scripting holes, or to send privileged information (e.g.,
+authentication/session cookies) to a previously unknown evil collection site.
+
+CSRF does not in any way rely on client-side active scripting, and its aim
+is to take unwanted, unapproved actions on a site where the victim has some
+prior relationship and authority.
+
+Where XSS sought to steal your online trading cookies so an attacker could
+manipulate your portfolio, CSRF seeks to use your cookies to force you to
+execute a trade without your knowledge or consent (or, in many cases, the
+attacker's knowledge, for that matter). [Just an extreme example there; I
+do not have any idea if any trading sites are vulnerable. I have not 
+tested *any* applications or sites that I don't have some personal 
+involvement in the design and maintenance of. Don't ask me to.]
+ <img src="https://trading.example.com/xfer?from=MSFT&to=RHAT&confirm=Y">
+ <img src="https://books.example.com/clickbuy?book=ISBNhere&quantity=100">
+
+** Ubiquity of attack channels
+
+Since HTML documents are popping up everywhere (even in corporate email 
+systems!!!), and it's impossible to discern what IMG or HREF values might be 
+direct CSRF attacks, or redirect users to unwittingly do dangerous things 
+via CSRF redirects, the fix has to be in the applications that do the 
+interesting things.
+
+> For example, if a user posted something along these lines:
+> [img]http://your.forums/forums/newreply.cgi?action=newthread&subject=aaa&bod
+> y=some+naughty+words&submit=go[/img]
+> Then the post would go through, under the name of whoever viewed the image.
+> This is of particular danger when an administrator views an image, which
+> then calls a page in an online control panel - thus granting the user access
+> to the control panel.
+
+** Impossible to filter content
+
+Right, and as I say, the site you act against can be somewhere else 
+entirely. Here's what a CSRF attack might look like:
+ <img src="http://example.net/logo.gif" height=0 width=0 alt="">
+That's it. When your client requests /logo.gif -- exposing no cookies -- the
+example.net server redirects you to a URL like the one you show, above. So
+the end result us the same as if the attacker had embedded the more obvious
+URL inside the IMG tag. 
+
+If an attacker wants, he can also use a simple, innocent looking hyperlink
+and hope the victim clicks on it (http://example.net/kyotoanalysis.htm). You
+don't allow hyperlinks? Well, someone might copy/paste the link, and be
+stung that way. They'd notice? Maybe not -- the URL could be a mostly useful
+page, with a tiny frameset sliver that loads your attack URL.
+
+> How can it be fixed? Well, there are a couple of ways to stop it, but the
+> easiest (in PHP at least) seems to be to have most of the variables used by
+> scripts be used through $HTTP_POST_VARS. So instead of checking for $action
+> in a script, $HTTP_POST_VARS['action'] would be checked. This forces the
+> user to use a POST request, not a GET. 
+
+which means the attacker reverts to using Javascript, or entices the victim
+to click on an image that's acting as a submit control in a <form>. 
+Requiring POST raises the bar, but doesn't really fix the problem.
+
+> Alternatively, the sessionid could be
+> required to come with the GET/POST request variables, rather than by cookie.
+
+...thereby exposing an important piece of authentication information to
+history files and proxy servers; I really don't like URL mangling for
+authentication purposes, especially in non-SSL systems. A combination of
+cookie + URL mangling might not be bad, though in the message board case, a
+CSRF attacker could use an intermediate redirect (as described earlier) to
+get the URL mangling (from the Referer), and redirect back to the
+messageboard with the proper mangling as well as all cookies that might be
+expected/needed. So in your example case, URL mangling would buy nothing. :-(
+
+> Finally, in the specific case of [img] tags, the use of ? or & in the img
+> URL can be disabled by some regexes.
+
+Not at all adequate. Browsers follow redirects on IMG tags, so I redirect
+you to http://example.net/logo.gif which in turn redirects you to the final
+URL, as described earlier.
+
+> If the software that you run is not secure, we recommend that you disable
+> HTML and/or [img] tags, until the fixes have been implemented.
+
+It's much worse than that.
+
+Please see the following URLs for an introduction to the dangers of CSRF, 
+and some discussion of countermeasure strategies. 
+
+ http://www.astray.com/pipermail/acmemail/2001-June/000803.html
+ http://www.astray.com/pipermail/acmemail/2001-June/000808.html
+ http://www.astray.com/pipermail/acmemail/2001-June/000804.html
+
+** Server-Side Countermeasures
+
+The fix MUST be implemented on the backend that's being attacked. In your 
+example, newreply.cgi needs to be intelligent enough to detect and stop CSRF 
+attacks. 
+
+We've talked about how an attacker can post a message to the messageboard
+with innocent looking URLs. But an attacker can also simply send the
+victim a piece of HTML email including the full attack IMG URL. No amount
+of IMG tag filtering in your messageboard posting system can stop that.
+
+** Three-phase tests before acting
+
+When it comes to generic CSRF attacks, any application that uses a
+two-phase approach to action approval is vulnerable (the two phases being
+[1] do you possess authentication information and [2] are all the required
+arguments present). What's needed is a third test: is the user really
+using a proper application form to generate the request?
+
+** The 90% solution: Referer tests
+
+For many sites, you can achieve a high level of protection by checking the
+HTTP Referer header. This would prevent things like attacks via email. But
+it would also mean locking out any user whose requests did not contain
+Referer information.[1] As long as the values in the allowed Referer list
+are all coded with XSS and CSRF in mind, this could be adequate.  Referer
+checks should be as specific as possible, e.g. you might require the
+Referer to begin with "https://example.com/admin/admin.cgi" or
+"https://example.com/admin/" instead of simply "https://example.com/".
+
+** The more difficult cases
+
+Some other applications are more difficult to secure. Consider webmail
+apps. So webmail.example.com decides only "message delete" requests from
+webmail.example.com pages will be accepted: well, if the attacker sends a
+CSRF message to your webmail account, then when you read it via webmail,
+the Referer in the CSRF image request (your client thinks it's an image
+request) says it's indeed from the proper webmail server (even in the case
+of an intermediate redirect; check the bugtraq archives for past
+discussion of anonymizing hyperlinks, redirects vs. client-pull, etc.), so
+the request gets through. Basically, any application that allows posting
+of URLs needs more sophisticated protection than Referer checks. This
+would also include messageboards and discussion sites like Slashdot.
+
+> Known Vulnerable: Infopop's UBB 6.04e (probably the whole 6.xx series),
+> ezboard 6.2, WWW Threads PHP 5.4, vBulletin 2.0.0 Release Candidate 2 and
+> before (later versions are safe). Probably many more bulletin boards and CGI
+> scripts out there, but those are the main ones that we have been tested
+> positive.
+
+** One-time authorization codes
+
+The URLs I list above outline a server-side one-use-token approach to
+closing the hole. For instance, the page that users are expected to use
+for drafting messages (in your newreply.cgi example) would create a
+one-time use token, good for a limited time. The newreply.cgi processing
+script would require this value be present, correct, and in time. So while
+the attacker knows that action, subject, body, and authcode values are
+required, the attacker does not know, and cannot ascertain, the proper
+value needed for the authcode argument.[0] These tactics tend to introduce 
+certain inconveniences (e.g., preventing use of the "back" button) so you 
+may wish to analyze the various actions your application can take and 
+provide varying levels of protection. For example, in a webmail system 
+sending and deleting messages need more protection than displaying 
+messages.
+
+** Unpredicatable argument names?
+
+Other tactics may be possible. For instance, consider
+"action=newthread&subject=aaa&body=some+naughty+words&submit=go". On the 
+server side, you could have an "argument map table" for each session, e.g. 
+pick random surrogates for the normal argument names. For one user, the 
+system might look for "876575665" as an argument name instead of the 
+predictable "action", "9876dafd987" for "body", etc. There may be some 
+tricks vis-a-vis anonymizing referers if the labels are constant 
+throughout a session, but it might be possible to do something like this to 
+make it more difficult to construct a valid URL for a CSRF malicious action.
+
+** Attacking sites behind corporate firewalls
+
+Want more fun? CSRF tactics can be used to attack servers behind corporate 
+firewalls. It's not just your public Web apps that are at risk.
+ <img src="http://intranet/admin/purgedatabase?rowslike=%2A&confirm=yes">
+If the attacker knows enough to make a URL and can get you to open a 
+message, that's all it takes. Here we see that HTTP Referer headers can be 
+a double-edged sword. Earlier we described how Referer tests can add 
+security to many apps relatively easily. But Referer headers can also leak 
+information about "private" sites if those sites use non-anonymized 
+hyperlinks and external document references.
+
+I'm afraid CSRF is going to be a mess to deal with in many cases. 
+Like trying to tame the seas.
+
+** Workarounds
+
+Most of us probably depend on applications that won't be fixed
+anytime soon. So what can you do to prevent a CSRF attack from making
+your browser request something without your approval?
+ - Do not use an email client that renders HTML
+ - Do not use a newsgroup client tied to your Web browser
+ - Do not allow your browser to save usernames/passwords
+ - Do not ask Web sites you care about to "remember" your login
+ - Be sure to "log off" before and after using any authenticated
+   Web site that's important to you [or your employer ;-)], even
+   if that means exiting your Web browser completely
+ - Consider using something like Windows 2000's "Run As" shortcut 
+   feature or my "runxas" shell script (available at the tux.org
+   URL listed below) to run a Web browser for casual use
+
+My apologies for the somewhat rambling nature of this post; I may yet
+clean this up and put it in a proper paper, and do some real editing...
+but I hope even in this rough form it makes some sense, and helps folks
+design better, safer applications.
+
+-Peter
+http://www.tux.org/~peterw/
+
+[0] Not unless the page that included the authcode is readable, e.g. if the 
+composition page had XSS bugs that would facilitate construction of a URL 
+for a CSRF attack.
+
+[1] As discussed earlier (http://www.securityfocus.com/archive/1/41653),
+client-pull pages usually result in no Referer information being sent by
+the client. So if your application allows a request with no Referer, an
+attacker need only direct the victim to an HTML document that uses a
+client-pull META tag to send the victim to the CSRF attack URL. This might
+be tricker to pull off, but remains feasible. So if you want to use
+Referer checks, you really ought to go all the way and deny every request
+that lacks a Referer header.
+
+[2] http://www.stonehenge.com/merlyn/ [3]
+
+[3] fellow cornfed users: the horror! footnotes referenced in reverse order!
